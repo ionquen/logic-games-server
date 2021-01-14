@@ -4,9 +4,11 @@ const WebSocket = require('ws')
 const crypto = require('crypto')
 const fs = require('fs');
 //var heapdump = require('heapdump');
+const PORT_LOBBY = process.env.PORT || 8081
+const PORT_CHAT = process.env.PORT || 8082
+const PORT_ROOM = process.env.PORT || 8083
 
-
-let lastUserId = fs.readFileSync("properties.txt", {flag: "a+"});
+let lastUserId = 50 //fs.readFileSync("properties.txt", {flag: "a+"});
 if (lastUserId=='') lastUserId=1
 lastUserId=+lastUserId
 let rooms = []
@@ -61,7 +63,7 @@ function getroom(roomId) {
 	}
 }
 //GLOBAL CHAT AND GENERATING TOKEN/////////////////////////////////////////////////////////////////////////////
-const wssGlobalChat = new WebSocket.Server({port: 8081});
+const wssGlobalChat = new WebSocket.Server({port: PORT_CHAT});
 wssGlobalChat.on('connection', ws => {
 	ws.send(JSON.stringify({type: 'history', data: history}))
 
@@ -92,7 +94,7 @@ wssGlobalChat.on('connection', ws => {
 })
 
 //ПОЛУЧЕНИЕ ВСЕХ КОМНАТ/////////////////////////////////////////////////////////////////////////////
-const wssLobby = new WebSocket.Server({port: 8082});
+const wssLobby = new WebSocket.Server({port: PORT_LOBBY});
 wssLobby.on("connection", ws => {
 	let userId
 	ws.on('message', dataJSON => {
@@ -143,7 +145,7 @@ wssLobby.on("connection", ws => {
 })
 
 //ROOM INTERACTIVE/////////////////////////////////////////////////////////////////////////////
-const wssRoom = new WebSocket.Server({port: 8083});
+const wssRoom = new WebSocket.Server({port: PORT_ROOM});
 wssRoom.on("connection", ws => {
 	let user
 	ws.on('message', dataJSON => {
