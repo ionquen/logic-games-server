@@ -7,7 +7,7 @@ const fs = require('fs');
 const PORT_LOBBY = process.env.PORT || 8081
 const PORT_CHAT = process.env.PORT || 8082
 const PORT_ROOM = process.env.PORT || 8083
-
+console.log(`Ports: \n chat - ${PORT_LOBBY}\n chat - ${PORT_CHAT}\n chat - ${PORT_ROOM}`)
 let lastUserId = 50 //fs.readFileSync("properties.txt", {flag: "a+"});
 if (lastUserId=='') lastUserId=1
 lastUserId=+lastUserId
