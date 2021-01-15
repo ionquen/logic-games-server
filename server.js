@@ -4,6 +4,7 @@ const WebSocket = require('ws')
 const Crypto = require('crypto')
 const Fs = require('fs')
 const Https = require('https')
+const Http = require('http')
 //var heapdump = require('heapdump');
 const PORT_LOBBY = process.env.PORT || 8081
 const PORT_CHAT = process.env.PORT || 8082
@@ -64,21 +65,18 @@ function getroom(roomId) {
 	}
 }
 //GLOBAL CHAT AND GENERATING TOKEN/////////////////////////////////////////////////////////////////////////////
-const serverGlobalChat = Https.createServer({
-	key:fs.readFileSync('./cert/server.key'),
-	cert:fs.readFileSync('./cert/server.crt')
-	}
-).listen(PORT_CHAT, console.log(`Htttps chat running on port: ${PORT_CHAT}`))
-const serverLobby = Https.createServer({
-	key:fs.readFileSync('./cert/server.key'),
-	cert:fs.readFileSync('./cert/server.crt')
-	}
-).listen(PORT_LOBBY, console.log(`Htttps lobby running on port: ${PORT_LOBBY}`))
-const serverRoom = Https.createServer({
-	key:fs.readFileSync('./cert/server.key'),
-	cert:fs.readFileSync('./cert/server.crt')
-	}
-).listen(PORT_ROOM, console.log(`Htttps room running on port: ${PORT_ROOM}`))
+const serverGlobalChat = Http.createServer({	
+	//key:fs.readFileSync('./cert/server.key'),
+	//cert:fs.readFileSync('./cert/server.crt')
+	}).listen(PORT_CHAT, console.log(`Htttps chat running on port: ${PORT_CHAT}`))
+const serverLobby = Http.createServer({
+	//key:fs.readFileSync('./cert/server.key'),
+	//cert:fs.readFileSync('./cert/server.crt')
+	}).listen(PORT_LOBBY, console.log(`Htttps lobby running on port: ${PORT_LOBBY}`))
+const serverRoom = Http.createServer({
+	//key:fs.readFileSync('./cert/server.key'),
+	//cert:fs.readFileSync('./cert/server.crt')
+	}).listen(PORT_ROOM, console.log(`Htttps room running on port: ${PORT_ROOM}`))
 
 const wssGlobalChat = new WebSocket.Server({server: serverGlobalChat});
 wssGlobalChat.on('connection', ws => {
