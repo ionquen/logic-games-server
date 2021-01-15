@@ -1,14 +1,15 @@
 "use strict";
-const { Console } = require('console');
+const { Console } = require('console')
 const WebSocket = require('ws')
-const crypto = require('crypto')
-const fs = require('fs');
+const Crypto = require('crypto')
+const Fs = require('fs')
+const Https = require('https')
 //var heapdump = require('heapdump');
 const PORT_LOBBY = process.env.PORT || 8081
 const PORT_CHAT = process.env.PORT || 8082
 const PORT_ROOM = process.env.PORT || 8083
 console.log(`Ports: \n chat - ${PORT_LOBBY}\n chat - ${PORT_CHAT}\n chat - ${PORT_ROOM}`)
-let lastUserId = 50 //fs.readFileSync("properties.txt", {flag: "a+"});
+let lastUserId = 50 //Fs.readFileSync("properties.txt", {flag: "a+"});
 if (lastUserId=='') lastUserId=1
 lastUserId=+lastUserId
 let rooms = []
@@ -29,17 +30,17 @@ setInterval(()=> {
 function createToken() {
 	lastUserId++ 
 	const userId = lastUserId
-	const fssProperties = fs.createWriteStream('properties.txt')
+	const fssProperties = Fs.createWriteStream('properties.txt')
 	fssProperties.write(lastUserId.toString())
 	fssProperties.end()
 	const encodedToken = lastUserId.toString() + '#' + Date.now().toString()
-	const cipher = crypto.createCipher('aes-256-cbc', "mnfui43hf897fh3847hf7uhvolow87ny874")
+	const cipher = Crypto.createCipher('aes-256-cbc', "mnfui43hf897fh3847hf7uhvolow87ny874")
 	let newToken = cipher.update(encodedToken , 'utf8', 'hex')
 	newToken += cipher.final('hex')
 	return {token: newToken, userId: userId}
 }
 function decodeToken(token) {
-	const decipher = crypto.createDecipher('aes-256-cbc', "mnfui43hf897fh3847hf7uhvolow87ny874")
+	const decipher = Crypto.createDecipher('aes-256-cbc', "mnfui43hf897fh3847hf7uhvolow87ny874")
 	let deci = decipher.update(token, 'hex', 'utf8')
 	deci +=decipher.final('utf8')
 	const userId = +(deci).match(/^.+(?=\#)/)
@@ -63,7 +64,23 @@ function getroom(roomId) {
 	}
 }
 //GLOBAL CHAT AND GENERATING TOKEN/////////////////////////////////////////////////////////////////////////////
-const wssGlobalChat = new WebSocket.Server({port: PORT_CHAT});
+const serverGlobalChat = Https.createServer({
+	key:fs.readFileSync('./cert/server.key'),
+	cert:fs.readFileSync('./cert/server.crt')
+	}
+).listen(PORT_CHAT, console.log(`Htttps chat running on port: ${PORT_CHAT}`))
+const serverLobby = Https.createServer({
+	key:fs.readFileSync('./cert/server.key'),
+	cert:fs.readFileSync('./cert/server.crt')
+	}
+).listen(PORT_LOBBY, console.log(`Htttps lobby running on port: ${PORT_LOBBY}`))
+const serverRoom = Https.createServer({
+	key:fs.readFileSync('./cert/server.key'),
+	cert:fs.readFileSync('./cert/server.crt')
+	}
+).listen(PORT_ROOM, console.log(`Htttps room running on port: ${PORT_ROOM}`))
+
+const wssGlobalChat = new WebSocket.Server({server: serverGlobalChat});
 wssGlobalChat.on('connection', ws => {
 	ws.send(JSON.stringify({type: 'history', data: history}))
 
@@ -94,7 +111,7 @@ wssGlobalChat.on('connection', ws => {
 })
 
 //ПОЛУЧЕНИЕ ВСЕХ КОМНАТ/////////////////////////////////////////////////////////////////////////////
-const wssLobby = new WebSocket.Server({port: PORT_LOBBY});
+const wssLobby = new WebSocket.Server({server: serverLobby});
 wssLobby.on("connection", ws => {
 	let userId
 	ws.on('message', dataJSON => {
@@ -145,7 +162,7 @@ wssLobby.on("connection", ws => {
 })
 
 //ROOM INTERACTIVE/////////////////////////////////////////////////////////////////////////////
-const wssRoom = new WebSocket.Server({port: PORT_ROOM});
+const wssRoom = new WebSocket.Server({server: serverRoom});
 wssRoom.on("connection", ws => {
 	let user
 	ws.on('message', dataJSON => {
