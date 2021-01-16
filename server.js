@@ -6,8 +6,8 @@ const Fs = require('fs')
 const Https = require('https')
 const Http = require('http')
 //var heapdump = require('heapdump');
-const PORT_LOBBY = process.env.PORT || 8081
-const PORT_CHAT = process.env.PORT || 8082
+const PORT_CHAT = process.env.PORT || 8081
+const PORT_LOBBY = process.env.PORT || 8082
 const PORT_ROOM = process.env.PORT || 8083
 console.log(`Ports: \n chat - ${PORT_LOBBY}\n chat - ${PORT_CHAT}\n chat - ${PORT_ROOM}`)
 let lastUserId = 50 //Fs.readFileSync("properties.txt", {flag: "a+"});
@@ -257,9 +257,9 @@ class Room {
 		if (this.started===true||this.creator!==userId&&userId!==undefined) return false
 		try {
 			switch (this.gameId) {
-				case "tictactoe": this.gameObj = new Tictactoe(this.gameProps, this.users, this.restartRoom)
-				case "sapper": this.gameObj = new Sapper(this.gameProps, this.users, this.restartRoom)
-				break
+				case "tictactoe": this.gameObj = new Tictactoe(this.gameProps, this.users, this.restartRoom); break
+				case "sapper": this.gameObj = new Sapper(this.gameProps, this.users, this.restartRoom); break
+				default: break
 			}
 			this.users.forEach(user => user.serverAction('start', this.gameObj.info(user.userId)))
 			this.started = true
@@ -673,7 +673,7 @@ class Sapper {
 				checkCell(cell + this.boardSizeX - 1, result)
 				checkCell(cell - this.boardSizeX + 1, result)
 				checkCell(cell + this.boardSizeX + 1, result)
-			} else result.push(minesCount)
+			} else Array.prototype.push.apply(result, minesCount)
 		}
 		checkCell(openedCell, result)
 		return result
