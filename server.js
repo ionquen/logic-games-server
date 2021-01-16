@@ -365,7 +365,7 @@ class Tictactoe {
 		this.players = users //Сведения об игроках из users
 
 		this.currentPlayerTurn = 0 //Игрок, который должен ходить (по массиву queue)
-		this.score = [] //Текущий счёт
+		this.score = {} //Текущий счёт
 		this.currentBoard = {} //Текущие данные поля
 
 		this.interval = undefined //Содержит setInterval
@@ -381,7 +381,7 @@ class Tictactoe {
 			}
 		}
 		for(let i = 0; i < this.players.length; i++) {
-			this.score.push([0])
+			this.score[i]=[0]
 		}
 		this.interval = setInterval(() => this.checkPlayerTimer(), 1000)
 		setTimeout(this.startNewRound, 1000)
@@ -552,7 +552,7 @@ class Sapper {
 
 		this.players = users //Сведения об игроках из users
 
-		this.score = [] //Текущий счёт
+		this.score = {} //Текущий счёт
 		this.board = {} //Расположение мин
 		this.alive = [] // Выжившие / невыжившие игроки
 		this.currentBoard = [] //Открытые ячейки каждого игрока
@@ -581,11 +581,12 @@ class Sapper {
 	/*
 		Events
 			roundStarted - начало раунда ex: {roundStarted: (время старта)}
+			roundFinished - завершение раунда ex: {currentPlayer: (победитель раунда)}
 			explode - подрыв игрока на мине ex: {currentPlayer: (подорвавшийся игрок)}
 			progress - прогресс игроков ex: {currentPlayer: (игрок), countCells: (открыто ячеек игроком)}
 			openedCells - открыты новые ячейки ex: {cells: [1, 2, 3, 4, 5 ] (номера открытых ячеек)}
-			finishRound - завершение раунда ex: {currentPlayer: (победитель раунда)}
 			error - ячейка уже была открыта
+			matchFinished - завершение матча
 	*/
 
 	info(userId) {
@@ -593,8 +594,8 @@ class Sapper {
 			roundsForWin: this.roundsForWin,
 			boardSizeX: this.boardSizeX,
 			boardSizeY: this.boardSizeY,
+			paused: this.minesCount,
 			
-			currentBoardPlayer: currentBoard[this.currentPlayer(userId)],
 			roundStarted: this.roundStarted,
 			paused: this.paused,
 			score: this.score,
@@ -667,7 +668,7 @@ class Sapper {
 				this.score[currentPlayerNumber][0]++
 				this.players.forEach(user => {
 					user.serverAction('game', {
-						type: 'finishRound',
+						type: 'roundFinished',
 						currentPlayer: currentPlayerNumber
 					})
 				})
@@ -680,7 +681,7 @@ class Sapper {
 	}
 	
 	checkWinner() {
-		for(let item in this.score) {
+		for(let item of this.score) {
 			if (item[0] >= this.roundsForWin) {
 				return true
 			}
