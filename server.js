@@ -258,6 +258,7 @@ class Room {
 		try {
 			switch (this.gameId) {
 				case "tictactoe": this.gameObj = new Tictactoe(this.gameProps, this.users, this.restartRoom)
+				case "sapper": this.gameObj = new Sapper(this.gameProps, this.users, this.restartRoom)
 				break
 			}
 			this.users.forEach(user => user.serverAction('start', this.gameObj.info(user.userId)))
@@ -538,5 +539,167 @@ class Tictactoe {
 			} catch{}
 		}
 		return false
+	}
+}
+
+class Sapper {
+	constructor(props={}, users, restartRoom) {
+		if (users.length<2||users.length>3) throw 0
+		this.roundsForWin = props.roundsForWin||10 //Количество раундов для победы игрока
+		this.boardSizeX = props.boardSizeX||30 //Размер поля по x
+		this.boardSizeY = props.boardSizeY||50 //Размер поля по y
+		
+		this.restartRoom = restartRoom //Перезагрузить комнату для новой партии
+
+		this.players = users //Сведения об игроках из users
+
+		this.score = [] //Текущий счёт
+		this.board = {} //Расположение мин
+		this.alive = []
+		this.currentBoard = [] //Открытые ячейки каждого игрока
+		this.minesCount = props.minesCount || 30
+
+		this.roundStarted = Date.now()  //Время с начала раунда
+		this.paused = true //Игра приостановлена (между раундами или в конце игры)
+
+		for(let i = 0; i < this.players.length; i++) {
+			this.score[i] = [0, 0]
+			this.currentBoard[i] = {}
+		}
+		let iterationMinesCount = this.minesCount
+		let markCell = 0
+		//Генерация мин
+		while (iterationMinesCount>0) {
+			const rand = Math.float(Math.random()*this.boardSizeX*this.boardSizeY)
+			if(this.board[rand]===undefined) {
+				this.board[rand]=true
+				iterationMinesCount--
+			}
+		}
+		setTimeout(this.startNewRound, 1000)
+	}
+
+	info(userId) {
+		return {
+			roundsForWin: this.roundsForWin,
+			boardSizeX: this.boardSizeX,
+			boardSizeY: this.boardSizeY,
+			
+			currentBoardPlayer: currentBoard[this.currentPlayer(userId)],
+			roundStarted: this.roundStarted,
+			paused: this.paused,
+			score: this.score,
+		}
+	}
+	currentPlayer = (userId) => {
+		let currentPlayer
+		this.players.some((player, index) => player.userId===userId?currentPlayer=index:false)
+		return currentPlayer
+	}
+	startNewRound = () => {
+		this.roundStarted = Date.now()
+		this.paused = false
+		this.currentBoard = []
+		this.alive = []
+		this.players.forEach(user => user.serverAction('game', {
+			type: 'roundStarted',
+			roundStarted: this.roundStarted,
+		}))
+	}
+
+	action(userId, data) {
+		if(this.paused===true||this.currentUser().leave) return false
+		if(data.x>this.boardSizeX||data.x<0||data.y>this.boardSizeY||data.y<0||!Number.isInteger(data.x)||!Number.isInteger(data.y)) return false
+		const cellNumber = data.x + data.y*this.boardSizeY
+		const currentPlayerNumber = this.currentPlayer(userId)
+		if (this.board[cellNumber]) {
+			this.alive[currentPlayerNumber]=false
+				this.players.forEach(user => user.serverAction('game', {
+				type: 'explode',
+				currentPlayer: currentPlayerNumber,
+			}))
+			let aliveCounter = 0
+			for (let item in this.alive) {
+				if (this.alive[currentPlayerNumber]===true) {
+					aliveCounter++
+				}
+			}
+			if (aliveCounter<2) {
+				this.paused=true
+				let aliver 
+				this.alive.forEach((player, index) => player?aliver=true:aliver=false)
+				this.score[aliver][0]++
+				setTimeout(this.startNewRound ,3000)
+			}
+			 
+		} else {
+			const openedCells = this.openCell()
+			this.currentBoard[currentPlayerNumber].push(otherCells)
+
+			this.players.forEach(user => user.userId===userId?
+				user.serverAction('game', {
+				type: 'openedCells',
+				cells: openedCells,
+			}):user.serverAction('game', {
+				type: 'turn',
+				currentPlayer: currentPlayerNumber,
+			}))
+			this.score[currentPlayerNumber][1]+=Object.keys(openedCells).length
+			//Проверка на закрытие всех клеток
+			if (this.score[currentPlayerNumber][1]>=(boardSizeX*boardSizeY - this.minesCount)) {
+				this.paused = true
+				this.score[currentPlayerNumber][0]++
+				this.players.forEach(user => {
+					user.serverAction('game', {
+						type: 'finishRound',
+						currentPlayer: currentPlayerNumber,
+					})
+				})
+				setTimeout(this.startNewRound ,3000)
+			}
+		}
+	}
+	openCell = (openedCell) => {
+		const result = []
+		function checkCell(cell, result) {
+			const minesCount = this.countMinesAroundCell(cell)
+			
+			if (minesCount===0) {
+				checkCell(cell - 1, result)
+				checkCell(cell + 1, result)
+				checkCell(cell - this.boardSizeX, result)
+				checkCell(cell + this.boardSizeX, result)
+				checkCell(cell - this.boardSizeX - 1, result)
+				checkCell(cell + this.boardSizeX - 1, result)
+				checkCell(cell - this.boardSizeX + 1, result)
+				checkCell(cell + this.boardSizeX + 1, result)
+			} else result.push(minesCount)
+		}
+		checkCell(openedCell, result)
+		return result
+	}
+	countMinesAroundCell(cell) {
+		counter = 0
+		if (board[cell - 1]) counter++
+		if (board[cell + 1]) counter++
+		if (board[cell - this.boardSizeX]) counter++
+		if (board[cell + this.boardSizeX]) counter++
+		if (board[cell - this.boardSizeX - 1]) counter++
+		if (board[cell + this.boardSizeX - 1]) counter++
+		if (board[cell - this.boardSizeX + 1]) counter++
+		if (board[cell + this.boardSizeX + 1]) counter++
+		return counter
+	}
+	finish() {
+		console.log('match finished sapper')
+		this.players.forEach(user => user.leave===false?user.serverAction('game', {
+			type: 'matchFinished',
+			score: this.score,
+		}):null)
+		this.restartRoom()
+	}
+
+	checkWinner(cellNumber) {
+
 	}
 }
