@@ -381,12 +381,11 @@ class Tictactoe {
 			}
 		}
 		for(let i = 0; i < this.players.length; i++) {
-			this.score[i] = 0
+			this.score.push([0])
 		}
 		this.interval = setInterval(() => this.checkPlayerTimer(), 1000)
 		setTimeout(this.startNewRound, 1000)
 	}
-
 	info(userId) {
 		return {
 			timeTurn: this.timeTurn,
@@ -454,8 +453,8 @@ class Tictactoe {
 		}
 		//Проверка на наличие победителя
 		if(this.checkWinner(cellNumber)) {
-			this.score[this.currentPlayerTurn]++
-			if (this.score[this.currentPlayerTurn]===this.roundsForWin) {
+			this.score[this.currentPlayerTurn][0]++
+			if (this.score[this.currentPlayerTurn][0]===this.roundsForWin) {
 				this.finish()
 			} else {
 				this.paused=true
@@ -555,7 +554,7 @@ class Sapper {
 
 		this.score = [] //Текущий счёт
 		this.board = {} //Расположение мин
-		this.alive = []
+		this.alive = [] // Выжившие / невыжившие игроки
 		this.currentBoard = [] //Открытые ячейки каждого игрока
 		this.minesCount = props.minesCount || 30
 
@@ -578,6 +577,16 @@ class Sapper {
 		}
 		setTimeout(this.startNewRound, 1000)
 	}
+
+	/*
+		Events
+			roundStarted - начало раунда ex: {roundStarted: (время старта)}
+			explode - подрыв игрока на мине ex: {currentPlayer: (подорвавшийся игрок)}
+			progress - прогресс игроков ex: {currentPlayer: (игрок), countCells: (открыто ячеек игроком)}
+			openedCells - открыты новые ячейки ex: {cells: [1, 2, 3, 4, 5 ] (номера открытых ячеек)}
+			finishRound - завершение раунда ex: {currentPlayer: (победитель раунда)}
+			error - ячейка уже была открыта
+	*/
 
 	info(userId) {
 		return {
@@ -610,41 +619,48 @@ class Sapper {
 	action(userId, data) {
 		if(this.paused===true||this.currentUser().leave) return false
 		if(data.x>this.boardSizeX||data.x<0||data.y>this.boardSizeY||data.y<0||!Number.isInteger(data.x)||!Number.isInteger(data.y)) return false
-		const cellNumber = data.x + data.y*this.boardSizeY
 		const currentPlayerNumber = this.currentPlayer(userId)
+		if (!this.alive[currentPlayerNumber]) return false
+
+		const cellNumber = data.x + data.y*this.boardSizeY
+		//Проверяем подорвался ли игрок
 		if (this.board[cellNumber]) {
 			this.alive[currentPlayerNumber]=false
 				this.players.forEach(user => user.serverAction('game', {
 				type: 'explode',
 				currentPlayer: currentPlayerNumber,
 			}))
+			//Проверяем число всех выживших
 			let aliveCounter = 0
-			for (let item in this.alive) {
-				if (this.alive[currentPlayerNumber]===true) {
-					aliveCounter++
-				}
-			}
+			this.alive.forEach(item=>item?aliveCounter++:null)[currentPlayerNumber]===true
 			if (aliveCounter<2) {
-				this.paused=true
-				let aliver 
-				this.alive.forEach((player, index) => player?aliver=true:aliver=false)
-				this.score[aliver][0]++
-				setTimeout(this.startNewRound ,3000)
-			}
-			 
+					//Остался 1 = завершение раунда
+					this.paused=true
+					let aliver 
+					this.alive.forEach((player, index) => player?aliver=true:aliver=false)
+					this.score[aliver][0]++
+					//Проверка на завершение игры
+					if (this.checkWinner()) {
+						this.finish()
+					} else setTimeout(this.startNewRound ,3000)
+				}
 		} else {
+			//Игрок не подорвался и открыл ячейки
 			const openedCells = this.openCell()
-			this.currentBoard[currentPlayerNumber].push(otherCells)
+			const countOpenedCells = Object.keys(openedCells).length
+			this.currentBoard[currentPlayerNumber]=Object.assign(this.currentBoard[currentPlayerNumber], openedCells)
+			this.score[currentPlayerNumber][1]+=countOpenedCells
 
 			this.players.forEach(user => user.userId===userId?
 				user.serverAction('game', {
 				type: 'openedCells',
 				cells: openedCells,
 			}):user.serverAction('game', {
-				type: 'turn',
+				type: 'progress',
 				currentPlayer: currentPlayerNumber,
+				countCells: countOpenedCells
 			}))
-			this.score[currentPlayerNumber][1]+=Object.keys(openedCells).length
+			
 			//Проверка на закрытие всех клеток
 			if (this.score[currentPlayerNumber][1]>=(boardSizeX*boardSizeY - this.minesCount)) {
 				this.paused = true
@@ -652,15 +668,28 @@ class Sapper {
 				this.players.forEach(user => {
 					user.serverAction('game', {
 						type: 'finishRound',
-						currentPlayer: currentPlayerNumber,
+						currentPlayer: currentPlayerNumber
 					})
 				})
-				setTimeout(this.startNewRound ,3000)
+				//Проверка на завершение игры
+				if (this.checkWinner()) {
+					this.finish()
+				} else setTimeout(this.startNewRound ,3000)
 			}
 		}
 	}
+	
+	checkWinner() {
+		for(let item in this.score) {
+			if (item[0] >= this.roundsForWin) {
+				return true
+			}
+		}
+		return false
+	}
+	//Открыть ячейку
 	openCell = (openedCell) => {
-		const result = []
+		const result = {}
 		function checkCell(cell, result) {
 			const minesCount = this.countMinesAroundCell(cell)
 			
@@ -673,11 +702,12 @@ class Sapper {
 				checkCell(cell + this.boardSizeX - 1, result)
 				checkCell(cell - this.boardSizeX + 1, result)
 				checkCell(cell + this.boardSizeX + 1, result)
-			} else Array.prototype.push.apply(result, minesCount)
+			} else result[cell] = minesCount
 		}
 		checkCell(openedCell, result)
 		return result
 	}
+	
 	countMinesAroundCell(cell) {
 		counter = 0
 		if (board[cell - 1]) counter++
@@ -690,6 +720,7 @@ class Sapper {
 		if (board[cell + this.boardSizeX + 1]) counter++
 		return counter
 	}
+
 	finish() {
 		console.log('match finished sapper')
 		this.players.forEach(user => user.leave===false?user.serverAction('game', {
@@ -697,9 +728,5 @@ class Sapper {
 			score: this.score,
 		}):null)
 		this.restartRoom()
-	}
-
-	checkWinner(cellNumber) {
-
 	}
 }
