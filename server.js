@@ -25,6 +25,7 @@ setInterval(()=> {
 		if(room.users.every(player=>!player.connected?true:false)||!room.started&&((Date.now()-room.created)>300000)){
 			room.close()
 			rooms.splice(index, 1)
+			console.log(`Закрыта комната ${room.roomId}`)
 		}
 	})
 }, 60000)
@@ -544,9 +545,10 @@ class Tictactoe {
 class Sapper {
 	constructor(props={}, users, restartRoom) {
 		if (users.length<2||users.length>3) throw 0
-		this.roundsForWin = props.roundsForWin||10 //Количество раундов для победы игрока
-		this.boardSizeX = props.boardSizeX||30 //Размер поля по x
-		this.boardSizeY = props.boardSizeY||50 //Размер поля по y
+		if (props.boardSizeX<10||props.boardSizeX>50||this.boardSizeY<10||this.boardSizeY>50) throw 0
+		this.roundsForWin = props.roundsForWin||30 //Количество раундов для победы игрока
+		this.boardSizeX = props.boardSizeX||15 //Размер поля по x
+		this.boardSizeY = props.boardSizeY||25 //Размер поля по y
 		
 		this.restartRoom = restartRoom //Перезагрузить комнату для новой партии
 
@@ -554,26 +556,15 @@ class Sapper {
 
 		this.score = {} //Текущий счёт
 		this.board = {} //Расположение мин
-		this.alive = [] // Выжившие / невыжившие игроки
+		this.burstUp = {} // Выжившие / невыжившие игроки
 		this.currentBoard = [] //Открытые ячейки каждого игрока
-		this.minesCount = props.minesCount || 30
+		this.minesCount = props.minesCount || 15
 
-		this.roundStarted = Date.now()  //Время с начала раунда
+		this.roundStartedTimestamp = Date.now()  //Время с начала раунда
 		this.paused = true //Игра приостановлена (между раундами или в конце игры)
-
 		for(let i = 0; i < this.players.length; i++) {
 			this.score[i] = [0, 0]
 			this.currentBoard[i] = {}
-		}
-		let iterationMinesCount = this.minesCount
-		let markCell = 0
-		//Генерация мин
-		while (iterationMinesCount>0) {
-			const rand = Math.float(Math.random()*this.boardSizeX*this.boardSizeY)
-			if(this.board[rand]===undefined) {
-				this.board[rand]=true
-				iterationMinesCount--
-			}
 		}
 		setTimeout(this.startNewRound, 1000)
 	}
@@ -584,7 +575,7 @@ class Sapper {
 			roundFinished - завершение раунда ex: {currentPlayer: (победитель раунда)}
 			explode - подрыв игрока на мине ex: {currentPlayer: (подорвавшийся игрок)}
 			progress - прогресс игроков ex: {currentPlayer: (игрок), countCells: (открыто ячеек игроком)}
-			openedCells - открыты новые ячейки ex: {cells: [1, 2, 3, 4, 5 ] (номера открытых ячеек)}
+			openedCells - открыты новые ячейки ex: {cells: {1: 4, 2: 2, 3: 8} (номера открытых ячеек и количество мин вокруг)}
 			error - ячейка уже была открыта
 			matchFinished - завершение матча
 	*/
@@ -596,60 +587,78 @@ class Sapper {
 			boardSizeY: this.boardSizeY,
 			paused: this.minesCount,
 			
-			roundStarted: this.roundStarted,
+			roundStartedTimestamp: this.roundStartedTimestamp,
 			paused: this.paused,
 			score: this.score,
 		}
 	}
 	currentPlayer = (userId) => {
-		let currentPlayer
-		this.players.some((player, index) => player.userId===userId?currentPlayer=index:false)
-		return currentPlayer
+		for (let playerIndex in this.players) {
+			if (this.players[playerIndex].userId===userId) return playerIndex
+		}
 	}
 	startNewRound = () => {
-		this.roundStarted = Date.now()
+		this.roundStartedTimestamp = Date.now()
+		let iterationMinesCount = this.minesCount
+		//Генерация мин
+		this.board = {}
+		while (iterationMinesCount>0) {
+			const rand = Math.floor(Math.random()*this.boardSizeX*this.boardSizeY)
+			if(this.board[rand]===undefined) {
+				this.board[rand]=true
+				iterationMinesCount--
+			}
+		}
 		this.paused = false
-		this.currentBoard = []
-		this.alive = []
+		for(let i = 0; i < this.players.length; i++) {
+			this.currentBoard[i] = {}
+			this.score[i][1]=0
+		}
+		this.burstUp = {}
 		this.players.forEach(user => user.serverAction('game', {
 			type: 'roundStarted',
-			roundStarted: this.roundStarted,
+			roundStartedTimestamp: this.roundStartedTimestamp,
 		}))
+		console.log("new round")
 	}
 
 	action(userId, data) {
-		if(this.paused===true||this.currentUser().leave) return false
+		if(this.paused===true||this.players[this.currentPlayer(userId)].leave) return false
 		if(data.x>this.boardSizeX||data.x<0||data.y>this.boardSizeY||data.y<0||!Number.isInteger(data.x)||!Number.isInteger(data.y)) return false
+		
 		const currentPlayerNumber = this.currentPlayer(userId)
-		if (!this.alive[currentPlayerNumber]) return false
-
-		const cellNumber = data.x + data.y*this.boardSizeY
+		if (this.burstUp[currentPlayerNumber]===true) return false
+		const cellNumber = data.x + data.y*this.boardSizeX
+		if (this.currentBoard[currentPlayerNumber].hasOwnProperty(cellNumber)) return false
 		//Проверяем подорвался ли игрок
 		if (this.board[cellNumber]) {
-			this.alive[currentPlayerNumber]=false
 				this.players.forEach(user => user.serverAction('game', {
 				type: 'explode',
 				currentPlayer: currentPlayerNumber,
+				x: data.x,
+				y: data.y
 			}))
+			this.burstUp[currentPlayerNumber]=true
 			//Проверяем число всех выживших
-			let aliveCounter = 0
-			this.alive.forEach(item=>item?aliveCounter++:null)[currentPlayerNumber]===true
-			if (aliveCounter<2) {
-					//Остался 1 = завершение раунда
+			if ((this.players.length - Object.keys(this.burstUp).length) < 2) {
+					//Осталось <2 = завершение раунда
 					this.paused=true
-					let aliver 
-					this.alive.forEach((player, index) => player?aliver=true:aliver=false)
-					this.score[aliver][0]++
+					this.players.forEach((player, index) => {
+						if (this.burstUp[index]===undefined) this.score[index][0]++
+					})
+					
 					//Проверка на завершение игры
 					if (this.checkWinner()) {
 						this.finish()
-					} else setTimeout(this.startNewRound ,3000)
+					} else setTimeout(this.startNewRound ,1000)
 				}
 		} else {
 			//Игрок не подорвался и открыл ячейки
-			const openedCells = this.openCell()
+			const openedCells = this.openCell(cellNumber)
 			const countOpenedCells = Object.keys(openedCells).length
-			this.currentBoard[currentPlayerNumber]=Object.assign(this.currentBoard[currentPlayerNumber], openedCells)
+			for (let key in openedCells) {
+				this.currentBoard[currentPlayerNumber][key] = true
+			}
 			this.score[currentPlayerNumber][1]+=countOpenedCells
 
 			this.players.forEach(user => user.userId===userId?
@@ -661,9 +670,10 @@ class Sapper {
 				currentPlayer: currentPlayerNumber,
 				countCells: countOpenedCells
 			}))
+			console.log(openedCells)
 			
 			//Проверка на закрытие всех клеток
-			if (this.score[currentPlayerNumber][1]>=(boardSizeX*boardSizeY - this.minesCount)) {
+			if (this.score[currentPlayerNumber][1]>=(this.boardSizeX*this.boardSizeY - this.minesCount)) {
 				this.paused = true
 				this.score[currentPlayerNumber][0]++
 				this.players.forEach(user => {
@@ -681,8 +691,8 @@ class Sapper {
 	}
 	
 	checkWinner() {
-		for(let item of this.score) {
-			if (item[0] >= this.roundsForWin) {
+		for(let item in this.score) {
+			if (this.score[item[0]] >= this.roundsForWin) {
 				return true
 			}
 		}
@@ -691,34 +701,35 @@ class Sapper {
 	//Открыть ячейку
 	openCell = (openedCell) => {
 		const result = {}
-		function checkCell(cell, result) {
+		const checkCell = (cell, result) => {
 			const minesCount = this.countMinesAroundCell(cell)
 			
 			if (minesCount===0) {
-				checkCell(cell - 1, result)
-				checkCell(cell + 1, result)
-				checkCell(cell - this.boardSizeX, result)
-				checkCell(cell + this.boardSizeX, result)
-				checkCell(cell - this.boardSizeX - 1, result)
-				checkCell(cell + this.boardSizeX - 1, result)
-				checkCell(cell - this.boardSizeX + 1, result)
-				checkCell(cell + this.boardSizeX + 1, result)
-			} else result[cell] = minesCount
+				if (!result[cell-1]===undefined) checkCell(cell - 1, result)
+				if (!result[cell+1]===undefined) checkCell(cell + 1, result)
+				if (!result[cell+1]===undefined) checkCell(cell - this.boardSizeX, result)
+				if (!result[cell+1]===undefined) checkCell(cell + this.boardSizeX, result)
+				if (!result[cell - this.boardSizeX - 1]===undefined) checkCell(cell - this.boardSizeX - 1, result)
+				if (!result[cell + this.boardSizeX - 1]===undefined) checkCell(cell + this.boardSizeX - 1, result)
+				if (!result[cell - this.boardSizeX + 1]===undefined) checkCell(cell - this.boardSizeX + 1, result)
+				if (!result[cell + this.boardSizeX + 1]===undefined) checkCell(cell + this.boardSizeX + 1, result)
+			} 
+			result[cell] = minesCount
 		}
-		checkCell(openedCell, result)
+		checkCell(openedCell,result)
 		return result
 	}
 	
 	countMinesAroundCell(cell) {
-		counter = 0
-		if (board[cell - 1]) counter++
-		if (board[cell + 1]) counter++
-		if (board[cell - this.boardSizeX]) counter++
-		if (board[cell + this.boardSizeX]) counter++
-		if (board[cell - this.boardSizeX - 1]) counter++
-		if (board[cell + this.boardSizeX - 1]) counter++
-		if (board[cell - this.boardSizeX + 1]) counter++
-		if (board[cell + this.boardSizeX + 1]) counter++
+		let counter = 0
+		if (this.board[cell - 1]===true) counter++
+		if (this.board[cell + 1]===true) counter++
+		if (this.board[cell - this.boardSizeX]===true) counter++
+		if (this.board[cell + this.boardSizeX]===true) counter++
+		if (this.board[cell - this.boardSizeX - 1]===true) counter++
+		if (this.board[cell + this.boardSizeX - 1]===true) counter++
+		if (this.board[cell - this.boardSizeX + 1]===true) counter++
+		if (this.board[cell + this.boardSizeX + 1]===true) counter++
 		return counter
 	}
 
