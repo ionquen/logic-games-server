@@ -10,7 +10,7 @@ const PORT_CHAT = process.env.PORT || 8081
 const PORT_LOBBY = process.env.PORT || 8082
 const PORT_ROOM = process.env.PORT || 8083
 console.log(`Ports: \n chat - ${PORT_LOBBY}\n chat - ${PORT_CHAT}\n chat - ${PORT_ROOM}`)
-let lastUserId = 50 //Fs.readFileSync("properties.txt", {flag: "a+"});
+let lastUserId = Fs.readFileSync("properties.txt", {flag: "a+"});
 if (lastUserId=='') lastUserId=1
 lastUserId=+lastUserId
 let rooms = []
@@ -66,18 +66,18 @@ function getroom(roomId) {
 	}
 }
 //GLOBAL CHAT AND GENERATING TOKEN/////////////////////////////////////////////////////////////////////////////
-const serverGlobalChat = Http.createServer({	
-	//key:fs.readFileSync('./cert/server.key'),
-	//cert:fs.readFileSync('./cert/server.crt')
-	}).listen(PORT_CHAT, console.log(`Htttps chat running on port: ${PORT_CHAT}`))
-const serverLobby = Http.createServer({
-	//key:fs.readFileSync('./cert/server.key'),
-	//cert:fs.readFileSync('./cert/server.crt')
-	}).listen(PORT_LOBBY, console.log(`Htttps lobby running on port: ${PORT_LOBBY}`))
-const serverRoom = Http.createServer({
-	//key:fs.readFileSync('./cert/server.key'),
-	//cert:fs.readFileSync('./cert/server.crt')
-	}).listen(PORT_ROOM, console.log(`Htttps room running on port: ${PORT_ROOM}`))
+const serverGlobalChat = Https.createServer({	
+	key:Fs.readFileSync('/etc/letsencrypt/live/games-ws.ionquen.ru/privkey.pem'),
+	cert:Fs.readFileSync('/etc/letsencrypt/live/games-ws.ionquen.ru/fullchain.pem')
+	}).listen(PORT_CHAT, console.log(`Https chat running on port: ${PORT_CHAT}`))
+const serverLobby = Https.createServer({
+	key:Fs.readFileSync('/etc/letsencrypt/live/games-ws.ionquen.ru/privkey.pem'),
+	cert:Fs.readFileSync('/etc/letsencrypt/live/games-ws.ionquen.ru/fullchain.pem')
+	}).listen(PORT_LOBBY, console.log(`Https lobby running on port: ${PORT_LOBBY}`))
+const serverRoom = Https.createServer({
+	key:Fs.readFileSync('/etc/letsencrypt/live/games-ws.ionquen.ru/privkey.pem'),
+	cert:Fs.readFileSync('/etc/letsencrypt/live/games-ws.ionquen.ru/fullchain.pem')
+	}).listen(PORT_ROOM, console.log(`Https room running on port: ${PORT_ROOM}`))
 
 const wssGlobalChat = new WebSocket.Server({server: serverGlobalChat});
 wssGlobalChat.on('connection', ws => {
@@ -129,7 +129,7 @@ wssLobby.on("connection", ws => {
 						ws.send(JSON.stringify({type: 'token', data: newToken}))
 					} else userId = decodeToken(data.token).userId
 				}
-				wsSend('list', list(data.gameId))//data=[Room...]
+				wsSend('list', list(data.gameId))
 				break
 			}
 			case 'connectbyroomid': {
@@ -141,7 +141,7 @@ wssLobby.on("connection", ws => {
 				try {
 					const room = new Room({...data, creator: userId})
 					rooms.push(room)
-					wsSend('join', room.join(userId, data.pw, data.userName))//return roomId
+					wsSend('join', room.join(userId, data.pw, data.userName))
 				} catch {console.log(`Не удалось создать комнату. userId: ${userId}`)}
 				break
 			case 'join': {
@@ -186,6 +186,7 @@ wssRoom.on("connection", ws => {
 					user = undefined
 				}
 				break
+				//Всё что связано с самой комнатой
 			default: 
 				if(user!==undefined) user.action(messageParsed.type, data)
 				break
@@ -196,7 +197,6 @@ wssRoom.on("connection", ws => {
 			user.action('disconnect')
 			user=undefined
 		}
-
 	})
 })
 
@@ -207,7 +207,7 @@ class Room {
 		this.roomId = randomMath().match(/^.{6}/)[0] //Случайный roomId
 		this.name = data.name||"Безымянная комната" //Название
 		this.private = data.private||false //Приватность комнаты
-		this.max = data.max||2 //Максимальное число игроков
+		this.max = data.gameProps.max||2 //Максимальное число игроков
 		this.autostart = data.autostart||true //Автостарт при максимальном числе игроков
 		this.gameId = data.gameId||"tictactoe" //Название игры
 		this.usePw = data.usePw||false //Подключение по паролю
@@ -244,8 +244,8 @@ class Room {
 		}
 	}
 
+	//Провоцирует рестарт комнаты (вызывается после завершения игры)
 	restartRoom = () => {
-		
 		this.gameObj = undefined
 		setTimeout(() => {
 			this.started = false
@@ -259,7 +259,7 @@ class Room {
 		try {
 			switch (this.gameId) {
 				case "tictactoe": this.gameObj = new Tictactoe(this.gameProps, this.users, this.restartRoom); break
-				case "sapper": this.gameObj = new Sapper(this.gameProps, this.users, this.restartRoom); break
+				case "minesweeper": this.gameObj = new Minesweeper(this.gameProps, this.users, this.restartRoom); break
 				default: break
 			}
 			this.users.forEach(user => user.serverAction('start', this.gameObj.info(user.userId)))
@@ -355,24 +355,35 @@ class User {
 class Tictactoe {
 	constructor(props={}, users, restartRoom) {
 		if (users.length<2||users.length>3) throw 0
-		this.timeTurn = props.timeTurn||20000 //Время на ход
-		this.roundsForWin = props.roundsForWin||10 //Количество раундов для победы игрока
-		this.boardSize = props.boardSize||19 //Размер поля
-		this.cellsForWin = props.cellsForWin&&props.boardSize>=props.cellsForWin?props.cellsForWin:5 //Количество ячеек в ряд для победы
-		
-		this.restartRoom = restartRoom //Перезагрузить комнату для новой партии
-		this.queue = [] //Последовательность, в которой игроки совершают ход
-
-		this.players = users //Сведения об игроках из users
-
-		this.currentPlayerTurn = 0 //Игрок, который должен ходить (по массиву queue)
-		this.score = {} //Текущий счёт
-		this.currentBoard = {} //Текущие данные поля
-
-		this.interval = undefined //Содержит setInterval
+		//Время на ход
+		this.timeTurn = props.timeTurn||20000 
+		//Количество раундов для победы игрока
+		this.roundsForWin = props.roundsForWin||10 
+		//Размер поля
+		this.boardSize = props.boardSize||19 
+		//Количество ячеек в ряд для победы
+		this.cellsForWin = props.cellsForWin&&props.boardSize>=props.cellsForWin?props.cellsForWin:5 
+		//Последовательность, в которой игроки совершают ход
+		this.queue = [] 
+		//Игрок, который должен ходить (по массиву queue)
+		this.currentPlayerTurn = 0 
+		//Текущий счёт
+		this.score = {} 
+		//Текущие данные поля
+		this.currentBoard = {} 
+		//Timestamp последнего события 
 		this.lasttime = undefined 
-		this.paused = true //Игра приостановлена (между раундами или в конце игры)
+		//Игра приостановлена (между раундами или в конце игры)
+		this.paused = true 
 
+		//Перезагрузить комнату для новой партии
+		this.restartRoom = restartRoom 
+		//Содержит setInterval
+		this.interval = undefined
+		//Сведения об игроках из users
+		this.players = users 
+
+		//Рандомим последовательность хода
 		let setupQueue = 0
 		while (setupQueue<this.players.length) {
 			const randomQueue = Math.floor(Math.random()*this.players.length)
@@ -384,9 +395,24 @@ class Tictactoe {
 		for(let i = 0; i < this.players.length; i++) {
 			this.score[i]=[0]
 		}
+
+		//Запускаем
 		this.interval = setInterval(() => this.checkPlayerTimer(), 1000)
 		setTimeout(this.startNewRound, 1000)
 	}
+
+	
+	/*
+		Events
+			nextPlayer - пропуск хода текущего игрока ex: {nextPlayer: (след .игрок), lasttime: (timestamp)}
+			roundStarted - начало раунда ex: {currentPlayerTurn: (след. игрок), lasttime: (timestamp)}
+			roundFinished, turn - завершение раунда / ход игрока 
+				ex: {x: (x), y: (y), cell: (номер игрока), lasttime:(timestamp), nextPlayer: (след. игрок)}
+			error - ячейка уже занята (из-за бага) ex: {x: (x), y: (y), cell: (номер игрока)}
+			matchFinished - завершение матча ex: {currentPlayerTurn: (победитель)}
+	*/
+
+
 	info(userId) {
 		return {
 			timeTurn: this.timeTurn,
@@ -402,14 +428,12 @@ class Tictactoe {
 			score: this.score,
 		}
 	}
-
+	//Получить текущего игрока
 	currentUser = () => this.players[this.queue[this.currentPlayerTurn]]
 
 	checkPlayerTimer(){
 		console.log(this.currentPlayerTurn)
 		if(!this.paused&&Date.now()>this.timeTurn+this.lasttime||this.currentUser().leave) {
-
-			
 			this.lasttime = Date.now()
 			const nextPlayer = this.nextPlayer()
 			if(nextPlayer!==null) {
@@ -447,13 +471,14 @@ class Tictactoe {
 			})
 		}
 		this.currentBoard[cellNumber] = this.currentPlayerTurn
+		//Проверяем наличие следующего игрока
 		const nextPlayer = this.nextPlayer()
 		if (nextPlayer===null) { 
 			this.finish()
 			return
 		}
 		//Проверка на наличие победителя
-		if(this.checkWinner(cellNumber)) {
+		if(this.checkCombo(cellNumber)) {
 			this.score[this.currentPlayerTurn][0]++
 			if (this.score[this.currentPlayerTurn][0]===this.roundsForWin) {
 				this.finish()
@@ -475,7 +500,7 @@ class Tictactoe {
 		this.currentPlayerTurn = nextPlayer
 	}
 
-	//Вернуть номер следующего игрока
+	//Вернуть номер следующего игрока (null если все ливнули или остался 1 игрок)
 	nextPlayer() {
 		let nextPlayer = this.currentPlayerTurn
 		for(let i = 0; i < this.players.length; i++) {
@@ -500,7 +525,8 @@ class Tictactoe {
 		this.restartRoom()
 	}
 
-	checkWinner(cellNumber) {
+	//Проверить на наличие комбинации ячеек
+	checkCombo(cellNumber) {
 		let countCells = 0
 		//По диагонали сверху-слева
 		for(let i = -this.cellsForWin +1; i < this.cellsForWin; i++) {
@@ -542,27 +568,39 @@ class Tictactoe {
 	}
 }
 
-class Sapper {
+class Minesweeper {
 	constructor(props={}, users, restartRoom) {
 		if (users.length<2||users.length>3) throw 0
-		if (props.boardSizeX<10||props.boardSizeX>50||this.boardSizeY<10||this.boardSizeY>50) throw 0
-		this.roundsForWin = props.roundsForWin||30 //Количество раундов для победы игрока
-		this.boardSizeX = props.boardSizeX||15 //Размер поля по x
-		this.boardSizeY = props.boardSizeY||25 //Размер поля по y
-		this.boardSize = this.boardSizeX* this.boardSizeY
-		
-		this.restartRoom = restartRoom //Перезагрузить комнату для новой партии
+		if (props.boardSizeX<10||props.boardSizeX>50||props.boardSizeY<10||props.boardSizeY>50) throw 0
+		//Количество раундов для победы игрока
+		this.roundsForWin = props.roundsForWin||30 
+		//Размер поля по x
+		this.boardSizeX = props.boardSizeX||15 
+		//Размер поля по y
+		this.boardSizeY = props.boardSizeY||25 
+		//Текущий счёт
+		this.score = {} 
+		//Расположение мин
+		this.board = {} 
+		// Выжившие / невыжившие игроки
+		this.burstUp = {} 
+		//Открытые ячейки каждого игрока
+		this.currentBoard = [] 
+		//Количество мин
+		this.minesCount = props.minesCount || 20
+		//Игра приостановлена (между раундами или в конце игры)
+		this.paused = true 
+		//Timestamp начала раунда
+		this.roundStartedTimestamp = Date.now()  
+		console.log(this.boardSizeX)
+		console.log(this.boardSizeY)
+		console.log(this.minesCount)
 
-		this.players = users //Сведения об игроках из users
+		//Перезагрузить комнату
+		this.restartRoom = restartRoom 
+		//Сведения об игроках из users
+		this.players = users 
 
-		this.score = {} //Текущий счёт
-		this.board = {} //Расположение мин
-		this.burstUp = {} // Выжившие / невыжившие игроки
-		this.currentBoard = [] //Открытые ячейки каждого игрока
-		this.minesCount = props.minesCount || 15
-
-		this.roundStartedTimestamp = Date.now()  //Время с начала раунда
-		this.paused = true //Игра приостановлена (между раундами или в конце игры)
 		for(let i = 0; i < this.players.length; i++) {
 			this.score[i] = [0, 0]
 			this.currentBoard[i] = {}
@@ -586,7 +624,7 @@ class Sapper {
 			roundsForWin: this.roundsForWin,
 			boardSizeX: this.boardSizeX,
 			boardSizeY: this.boardSizeY,
-			paused: this.minesCount,
+			minesCount: this.minesCount,
 			
 			roundStartedTimestamp: this.roundStartedTimestamp,
 			paused: this.paused,
@@ -625,19 +663,17 @@ class Sapper {
 
 	action(userId, data) {
 		if(this.paused===true||this.players[this.currentPlayer(userId)].leave) return false
-		if(data.x>this.boardSizeX||data.x<0||data.y>this.boardSizeY||data.y<0||!Number.isInteger(data.x)||!Number.isInteger(data.y)) return false
+		if(data.cell<0||data.cell>this.boardSizeY*this.boardSizeX||!Number.isInteger(data.cell)) return false
 		
 		const currentPlayerNumber = this.currentPlayer(userId)
 		if (this.burstUp[currentPlayerNumber]===true) return false
-		const cellNumber = data.x + data.y*this.boardSizeX
-		if (this.currentBoard[currentPlayerNumber].hasOwnProperty(cellNumber)) return false
+		if (this.currentBoard[currentPlayerNumber].hasOwnProperty(data.cell)) return false
 		//Проверяем подорвался ли игрок
-		if (this.board[cellNumber]) {
+		if (this.board[data.cell]) {
 				this.players.forEach(user => user.serverAction('game', {
 				type: 'explode',
 				currentPlayer: currentPlayerNumber,
-				x: data.x,
-				y: data.y
+				cell: data.cell,
 			}))
 			this.burstUp[currentPlayerNumber]=true
 			//Проверяем число всех выживших
@@ -663,7 +699,7 @@ class Sapper {
 				}
 		} else {
 			//Игрок не подорвался и открыл ячейки
-			const openedCells = this.openCell(cellNumber)
+			const openedCells = this.openCell(data.cell)
 			const countOpenedCells = Object.keys(openedCells).length
 			for (let key in openedCells) {
 				this.currentBoard[currentPlayerNumber][key] = true
@@ -679,10 +715,9 @@ class Sapper {
 				currentPlayer: currentPlayerNumber,
 				countCells: countOpenedCells
 			}))
-			console.log(openedCells)
 			
 			//Проверка на закрытие всех клеток
-			if (this.score[currentPlayerNumber][1]>=(this.boardSizeX*this.boardSizeY - this.minesCount)) {
+			if (Object.keys(this.currentBoard[currentPlayerNumber]).length>=(this.boardSizeX*this.boardSizeY - this.minesCount)) {
 				this.paused = true
 				this.score[currentPlayerNumber][0]++
 				this.players.forEach(user => {
@@ -711,38 +746,40 @@ class Sapper {
 	openCell = (openedCell) => {
 		const result = {}
 		const checkCell = (cell, result) => {
-			const minesCount = this.countMinesAroundCell(cell)
+			const x = cell%this.boardSizeX
+			const y = ~~(cell/this.boardSizeX)
+			const minesCount = this.countMinesAroundCell(cell, x, y)
 			result[cell] = minesCount
 			if (minesCount===0) {
-				if (cell-1>=0&&cell-1<this.boardSize&&result[cell-1]===undefined) checkCell(cell - 1, result)
-				if (cell+1>=0&&cell+1<this.boardSize&&result[cell+1]===undefined) checkCell(cell + 1, result)
-				if (cell - this.boardSizeX >= 0&&cell - this.boardSizeX < this.boardSize&&result[cell - this.boardSizeX]===undefined) checkCell(cell - this.boardSizeX, result)
-				if (cell + this.boardSizeX >= 0&&cell + this.boardSizeX < this.boardSize&&result[cell + this.boardSizeX]===undefined) checkCell(cell + this.boardSizeX, result)
-				if (cell - this.boardSizeX - 1 >= 0&&cell - this.boardSizeX - 1 < this.boardSize&&result[cell - this.boardSizeX - 1]===undefined) checkCell(cell - this.boardSizeX - 1, result)
-				if (cell + this.boardSizeX - 1 >= 0&&cell + this.boardSizeX - 1 < this.boardSize&&result[cell + this.boardSizeX - 1]===undefined) checkCell(cell + this.boardSizeX - 1, result)
-				if (cell - this.boardSizeX + 1 >= 0&&cell - this.boardSizeX + 1 < this.boardSize&&result[cell - this.boardSizeX + 1]===undefined) checkCell(cell - this.boardSizeX + 1, result)
-				if (cell + this.boardSizeX + 1 >= 0&&cell + this.boardSizeX + 1 < this.boardSize&&result[cell + this.boardSizeX + 1]===undefined) checkCell(cell + this.boardSizeX + 1, result)
+				if (x>0&&result[cell-1]===undefined) checkCell(cell - 1, result)
+				if (x+1<this.boardSizeX&&result[cell+1]===undefined) checkCell(cell + 1, result)
+				if (y>0&&result[cell - this.boardSizeX]===undefined) checkCell(cell - this.boardSizeX, result)
+				if (y+1<this.boardSizeY&&result[cell + this.boardSizeX]===undefined) checkCell(cell + this.boardSizeX, result)
+				if (x>0&&y>0&&result[cell - this.boardSizeX - 1]===undefined) checkCell(cell - this.boardSizeX - 1, result)
+				if (x>0&&y+1<this.boardSizeY&&result[cell + this.boardSizeX - 1]===undefined) checkCell(cell + this.boardSizeX - 1, result)
+				if (x+1<this.boardSizeX&&y>0&&result[cell - this.boardSizeX + 1]===undefined) checkCell(cell - this.boardSizeX + 1, result)
+				if (x+1<this.boardSizeX&&y+1<this.boardSizeY&&result[cell + this.boardSizeX + 1]===undefined) checkCell(cell + this.boardSizeX + 1, result)
 			} 
 		}
 		checkCell(openedCell,result)
 		return result
 	}
 	
-	countMinesAroundCell(cell) {
+	countMinesAroundCell(cell, x, y) {
 		let counter = 0
-		if (this.board[cell - 1]===true) counter++
-		if (this.board[cell + 1]===true) counter++
-		if (this.board[cell - this.boardSizeX]===true) counter++
-		if (this.board[cell + this.boardSizeX]===true) counter++
-		if (this.board[cell - this.boardSizeX - 1]===true) counter++
-		if (this.board[cell + this.boardSizeX - 1]===true) counter++
-		if (this.board[cell - this.boardSizeX + 1]===true) counter++
-		if (this.board[cell + this.boardSizeX + 1]===true) counter++
+		if (x!==0&&this.board[cell - 1]===true) counter++
+		if (x+1!==this.boardSizeX&&this.board[cell + 1]===true) counter++
+		if (y!==0&&this.board[cell - this.boardSizeX]===true) counter++
+		if (y+1!==this.boardSizeY&&this.board[cell + this.boardSizeX]===true) counter++
+		if (x!==0&&y!==0&&this.board[cell - this.boardSizeX - 1]===true) counter++
+		if (x!==0&&y+1!==this.boardSizeY&&this.board[cell + this.boardSizeX - 1]===true) counter++
+		if (x+1!==this.boardSizeX&&y!==0&&this.board[cell - this.boardSizeX + 1]===true) counter++
+		if (x+1!==this.boardSizeX&&y+1!==this.boardSizeY&&this.board[cell + this.boardSizeX + 1]===true) counter++
 		return counter
 	}
 
 	finish() {
-		console.log('match finished sapper')
+		console.log('match finished Minesweeper')
 		this.players.forEach(user => user.leave===false?user.serverAction('game', {
 			type: 'matchFinished',
 			score: this.score,
