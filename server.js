@@ -736,7 +736,7 @@ class Minesweeper {
 	
 	checkWinner() {
 		for(let item in this.score) {
-			if (this.score[item[0]] >= this.roundsForWin) {
+			if (this.score[item][0] >= this.roundsForWin) {
 				return true
 			}
 		}
