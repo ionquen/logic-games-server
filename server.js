@@ -728,7 +728,7 @@ class Minesweeper {
 				})
 				//Проверка на завершение игры
 				if (this.checkWinner()) {
-					this.finish()
+					this.finish(currentPlayerNumber)
 				} else setTimeout(this.startNewRound ,3000)
 			}
 		}
@@ -778,11 +778,11 @@ class Minesweeper {
 		return counter
 	}
 
-	finish() {
+	finish(playerNumber) {
 		console.log('match finished Minesweeper')
 		this.players.forEach(user => user.leave===false?user.serverAction('game', {
 			type: 'matchFinished',
-			score: this.score,
+			currentPlayer: playerNumber,
 		}):null)
 		this.restartRoom()
 	}
