@@ -549,6 +549,7 @@ class Sapper {
 		this.roundsForWin = props.roundsForWin||30 //Количество раундов для победы игрока
 		this.boardSizeX = props.boardSizeX||15 //Размер поля по x
 		this.boardSizeY = props.boardSizeY||25 //Размер поля по y
+		this.boardSize = this.boardSizeX* this.boardSizeY
 		
 		this.restartRoom = restartRoom //Перезагрузить комнату для новой партии
 
@@ -644,7 +645,15 @@ class Sapper {
 					//Осталось <2 = завершение раунда
 					this.paused=true
 					this.players.forEach((player, index) => {
-						if (this.burstUp[index]===undefined) this.score[index][0]++
+						if (this.burstUp[index]===undefined) {
+							this.score[index][0]++
+							this.players.forEach(user => {
+								user.serverAction('game', {
+									type: 'roundFinished',
+									currentPlayer: index
+								})
+							})
+						}
 					})
 					
 					//Проверка на завершение игры
@@ -703,18 +712,17 @@ class Sapper {
 		const result = {}
 		const checkCell = (cell, result) => {
 			const minesCount = this.countMinesAroundCell(cell)
-			
-			if (minesCount===0) {
-				if (!result[cell-1]===undefined) checkCell(cell - 1, result)
-				if (!result[cell+1]===undefined) checkCell(cell + 1, result)
-				if (!result[cell+1]===undefined) checkCell(cell - this.boardSizeX, result)
-				if (!result[cell+1]===undefined) checkCell(cell + this.boardSizeX, result)
-				if (!result[cell - this.boardSizeX - 1]===undefined) checkCell(cell - this.boardSizeX - 1, result)
-				if (!result[cell + this.boardSizeX - 1]===undefined) checkCell(cell + this.boardSizeX - 1, result)
-				if (!result[cell - this.boardSizeX + 1]===undefined) checkCell(cell - this.boardSizeX + 1, result)
-				if (!result[cell + this.boardSizeX + 1]===undefined) checkCell(cell + this.boardSizeX + 1, result)
-			} 
 			result[cell] = minesCount
+			if (minesCount===0) {
+				if (cell-1>=0&&cell-1<this.boardSize&&result[cell-1]===undefined) checkCell(cell - 1, result)
+				if (cell+1>=0&&cell+1<this.boardSize&&result[cell+1]===undefined) checkCell(cell + 1, result)
+				if (cell - this.boardSizeX >= 0&&cell - this.boardSizeX < this.boardSize&&result[cell - this.boardSizeX]===undefined) checkCell(cell - this.boardSizeX, result)
+				if (cell + this.boardSizeX >= 0&&cell + this.boardSizeX < this.boardSize&&result[cell + this.boardSizeX]===undefined) checkCell(cell + this.boardSizeX, result)
+				if (cell - this.boardSizeX - 1 >= 0&&cell - this.boardSizeX - 1 < this.boardSize&&result[cell - this.boardSizeX - 1]===undefined) checkCell(cell - this.boardSizeX - 1, result)
+				if (cell + this.boardSizeX - 1 >= 0&&cell + this.boardSizeX - 1 < this.boardSize&&result[cell + this.boardSizeX - 1]===undefined) checkCell(cell + this.boardSizeX - 1, result)
+				if (cell - this.boardSizeX + 1 >= 0&&cell - this.boardSizeX + 1 < this.boardSize&&result[cell - this.boardSizeX + 1]===undefined) checkCell(cell - this.boardSizeX + 1, result)
+				if (cell + this.boardSizeX + 1 >= 0&&cell + this.boardSizeX + 1 < this.boardSize&&result[cell + this.boardSizeX + 1]===undefined) checkCell(cell + this.boardSizeX + 1, result)
+			} 
 		}
 		checkCell(openedCell,result)
 		return result
