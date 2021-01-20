@@ -670,10 +670,13 @@ class Minesweeper {
 		if (this.currentBoard[currentPlayerNumber].hasOwnProperty(data.cell)) return false
 		//Проверяем подорвался ли игрок
 		if (this.board[data.cell]) {
-				this.players.forEach(user => user.serverAction('game', {
+				this.players.forEach(user => user.userId===userId?user.serverAction('game', {
 				type: 'explode',
 				currentPlayer: currentPlayerNumber,
 				cell: data.cell,
+			}): user.serverAction('game', {
+				type: 'explode',
+				currentPlayer: currentPlayerNumber
 			}))
 			this.burstUp[currentPlayerNumber]=true
 			//Проверяем число всех выживших
