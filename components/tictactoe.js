@@ -1,16 +1,15 @@
-"use strict";
-
-export default class Tictactoe {
+module.exports = class Tictactoe {
 	constructor(props={}, users, restartRoom) {
 		if (users.length<2||users.length>3) throw 0
+		if(!Number.isInteger(props.timeTurn)|| !Number.isInteger(props.roundsForWin)|| !Number.isInteger(props.boardSize)|| !Number.isInteger(props.cellsForWin)) throw 0
 		//Время на ход
-		this.timeTurn = props.timeTurn||20000 
+		this.timeTurn = props.timeTurn>=3&&props.timeTurn<=60?props.timeTurn*1000:20000 
 		//Количество раундов для победы игрока
-		this.roundsForWin = props.roundsForWin||10 
+		this.roundsForWin = props.roundsForWin>=5&&props.roundsForWin<=30?props.roundsForWin:10 
 		//Размер поля
-		this.boardSize = props.boardSize||19 
+		this.boardSize = props.boardSize>=3&&props.boardSize<=30?props.boardSize:15 
 		//Количество ячеек в ряд для победы
-		this.cellsForWin = props.cellsForWin&&props.boardSize>=props.cellsForWin?props.cellsForWin:5 
+		this.cellsForWin = props.cellsForWin>=3&&props.boardSize>=props.cellsForWin?props.cellsForWin:3 
 		//Последовательность, в которой игроки совершают ход
 		this.queue = [] 
 		//Игрок, который должен ходить (по массиву queue)
@@ -20,7 +19,7 @@ export default class Tictactoe {
 		//Текущие данные поля
 		this.currentBoard = {} 
 		//Timestamp последнего события 
-		this.lasttime = undefined 
+		this.lasttime = Date.now() 
 		//Игра приостановлена (между раундами или в конце игры)
 		this.paused = true 
 

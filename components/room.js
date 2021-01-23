@@ -1,8 +1,8 @@
-"use strict";
-const Tictactoe = import('./tictactoe')
-const Minesweeper = import('./minesweeper')
+const Tictactoe = require('./tictactoe')
+const Minesweeper = require('./minesweeper')
+const {decodeToken, randomMath} = require('./funcs')
 
-export default class Room {
+module.exports = class Room {
 	constructor(data) {
 		this.created = Date.now() //Дата пересоздания лобби
 		this.creator = data.creator||1 //userId создателя комнаты
@@ -65,6 +65,7 @@ export default class Room {
 				case "minesweeper": this.gameObj = new Minesweeper(this.gameProps, this.users, this.restartRoom); break
 				default: break
 			}
+			console.log(this.gameProps)
 			this.users.forEach(user => user.serverAction('start', this.gameObj.info(user.userId)))
 			this.started = true
 		}
@@ -154,3 +155,4 @@ class User {
 		this.userAction(this.userId, type, data)
 	}
 }
+

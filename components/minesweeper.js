@@ -1,15 +1,16 @@
-"use strict";
-
-export default class Minesweeper {
+module.exports = class Minesweeper {
 	constructor(props={}, users, restartRoom) {
-		if (users.length<2||users.length>3) throw 0
+		if (users.length<2||users.length>5) throw 0
 		if (props.boardSizeX<10||props.boardSizeX>50||props.boardSizeY<10||props.boardSizeY>50) throw 0
-		//Количество раундов для победы игрока
-		this.roundsForWin = props.roundsForWin||30 
+		if(!Number.isInteger(props.minesCount)|| !Number.isInteger(props.roundsForWin)|| !Number.isInteger(props.boardSizeX)|| !Number.isInteger(props.boardSizeY)) throw 0
+		//Раундов для победы 
+		this.roundsForWin = props.roundsForWin>=5&&props.roundsForWin<=30?props.roundsForWin:10 
 		//Размер поля по x
-		this.boardSizeX = props.boardSizeX||15 
+		this.boardSizeX = props.boardSizeX>=10&&props.boardSizeX<=40?props.boardSizeX:10 
 		//Размер поля по y
-		this.boardSizeY = props.boardSizeY||25 
+		this.boardSizeY = props.boardSizeY>=10&&props.boardSizeX<=60?props.boardSizeX:10 
+		//Количество мин
+		this.minesCount = props.minesCount>=10&&props.minesCount<=props.boardSizeX*props.boardSizeY?props.minesCount:20
 		//Текущий счёт
 		this.score = {} 
 		//Расположение мин
@@ -18,16 +19,10 @@ export default class Minesweeper {
 		this.burstUp = {} 
 		//Открытые ячейки каждого игрока
 		this.currentBoard = [] 
-		//Количество мин
-		this.minesCount = props.minesCount || 20
 		//Игра приостановлена (между раундами или в конце игры)
 		this.paused = true 
 		//Timestamp начала раунда
 		this.roundStartedTimestamp = Date.now()  
-		console.log(this.boardSizeX)
-		console.log(this.boardSizeY)
-		console.log(this.minesCount)
-
 		//Перезагрузить комнату
 		this.restartRoom = restartRoom 
 		//Сведения об игроках из users
