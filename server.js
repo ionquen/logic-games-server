@@ -4,7 +4,8 @@ const WebSocket = require('ws')
 const Crypto = require('crypto')
 const Fs = require('fs')
 const Https = require('https')
-const Http = require('http')
+const Room = require('./components/room')
+const {decodeToken, createToken} = require('./components/funcs')
 //var heapdump = require('heapdump');
 const PORT_CHAT = process.env.PORT || 8081
 const PORT_LOBBY = process.env.PORT || 8082
@@ -29,32 +30,6 @@ setInterval(()=> {
 		}
 	})
 }, 60000)
-function createToken() {
-	lastUserId++ 
-	const userId = lastUserId
-	const fssProperties = Fs.createWriteStream('properties.txt')
-	fssProperties.write(lastUserId.toString())
-	fssProperties.end()
-	const encodedToken = lastUserId.toString() + '#' + Date.now().toString()
-	const cipher = Crypto.createCipher('aes-256-cbc', "mnfui43hf897fh3847hf7uhvolow87ny874")
-	let newToken = cipher.update(encodedToken , 'utf8', 'hex')
-	newToken += cipher.final('hex')
-	return {token: newToken, userId: userId}
-}
-function decodeToken(token) {
-	const decipher = Crypto.createDecipher('aes-256-cbc', "mnfui43hf897fh3847hf7uhvolow87ny874")
-	let deci = decipher.update(token, 'hex', 'utf8')
-	deci +=decipher.final('utf8')
-	const userId = +(deci).match(/^.+(?=\#)/)
-	const tokenDateCreated = +(deci).match(/(?=\#).+$/)
-	return {userId: userId, date: tokenDateCreated}
-}
-function randomMath() {
-	const random = () => {
-		return Math.random().toString(36).substr(2)
-	}
-	return random()
-}
 function list(gameId) {
 	let result = []
 	rooms.forEach(room => room.gameId==gameId && room.private==false? result.push(room.info()): null)
@@ -142,7 +117,10 @@ wssLobby.on("connection", ws => {
 					const room = new Room({...data, creator: userId})
 					rooms.push(room)
 					wsSend('join', room.join(userId, data.pw, data.userName))
-				} catch {console.log(`Не удалось создать комнату. userId: ${userId}`)}
+				} catch(e) {
+					console.log(`Failed to create room. userId: ${userId}`)
+					console.log(e)
+				}
 				break
 			case 'join': {
 				const room = getroom(data.roomId)
@@ -198,6 +176,7 @@ wssRoom.on("connection", ws => {
 			user=undefined
 		}
 	})
+<<<<<<< HEAD
 })
 
 class Room {
@@ -790,3 +769,6 @@ class Minesweeper {
 		this.restartRoom()
 	}
 }
+=======
+})
+>>>>>>> develop
