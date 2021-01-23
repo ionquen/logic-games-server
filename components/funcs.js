@@ -1,3 +1,4 @@
+const Crypto = require('crypto')
 function randomMath() {
 	const random = () => {
 		return Math.random().toString(36).substr(2)
