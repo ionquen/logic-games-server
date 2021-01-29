@@ -18,7 +18,7 @@ function decodeToken(token) {
 	const decipher = Crypto.createDecipher('aes-256-cbc', "mnfui43hf897fh3847hf7uhvolow87ny874")
 	let deci = decipher.update(token, 'hex', 'utf8')
 	deci +=decipher.final('utf8')
-	const userId = +(deci).match(/^.+(?=\#)/)
+	const userId = (deci).match(/^.+(?=\#)/)
 	const tokenDateCreated = +(deci).match(/(?=\#).+$/)
 	return {userId: userId, date: tokenDateCreated}
 }

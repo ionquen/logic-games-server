@@ -88,7 +88,7 @@ module.exports = class Room {
 					date: Date.now(),
 				}
 				this.chat.push(formatMessage)
-				this.users.forEach(user => user.userId!==userId?user.serverAction('chat', formatMessage):null)
+				this.users.forEach(user => user.serverAction('chat', formatMessage))
 				break;
 			case "disconnect":
 				this.users.forEach(user => user.userId!==userId?user.serverAction('userDisconnected', userId):user.connected=false)
