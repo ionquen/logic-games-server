@@ -29,7 +29,7 @@ setInterval(()=> {
 }, 60000)
 function list(gameId) {
 	let result = []
-	rooms.forEach(room => room.gameId==gameId && room.private==false? result.push(room.info()): null)
+	rooms.forEach(room => room.gameId===gameId && room.private===false? result.push(room.info()): null)
 	return result
 }
 function getroom(roomId) {
@@ -69,7 +69,7 @@ wssGlobalChat.on('connection', ws => {
 							date: Date.now(),
 					}
 					wssGlobalChat.clients.forEach(client => {
-						if(client != ws && client.readyState === WebSocket.OPEN) client.send(JSON.stringify({type: 'chat', data: formatMessage}))					
+						if(client.readyState === WebSocket.OPEN) client.send(JSON.stringify({type: 'chat', data: formatMessage}))					
 					})
 					if(history.length>19) history.shift()
 					history.push(formatMessage)
