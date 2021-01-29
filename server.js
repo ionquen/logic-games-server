@@ -28,7 +28,9 @@ setInterval(()=> {
 	})
 }, 60000)
 function list(gameId) {
-	return rooms.map(room => {if(room.gameId===gameId && room.private===false) {return room.info()}})
+	let result = []
+	rooms.forEach(room => room.gameId===gameId && room.private===false? result.push(room.info()): null)
+	return result
 }
 function getroom(roomId) {
 	for(let room of rooms) {
