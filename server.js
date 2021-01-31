@@ -14,30 +14,46 @@ console.log(`Ports: \n chat - ${PORT_LOBBY}\n chat - ${PORT_CHAT}\n chat - ${POR
 let rooms = []
 let history = []
 
+/*
 setInterval(() => {
 	const mem = process.memoryUsage()
 	console.log(`-----------------\nrss: ${mem.rss}\nheap: ${~~(mem.heapUsed/1024)}/${~~(mem.heapTotal/1024)} kb\nexternal: ${mem.external}\narrayBuffers: ${mem.arrayBuffers}\n-----------------`)
 }, 10000)
+*/
+
+//Автоудаление неиспользуемых комнат
 setInterval(()=> {
 	rooms.forEach((room, index)=> {
 		if(room.users.every(player=>!player.connected?true:false)||!room.started&&((Date.now()-room.created)>300000)){
 			room.close()
 			rooms.splice(index, 1)
-			console.log(`Закрыта комната ${room.roomId}`)
+			console.log(`Room #${room.roomId} has been removed`)
 		}
 	})
 }, 60000)
+
+
+/**
+ * Get rooms list
+ * @param {String} gameId 
+ * @return {Array<Room>} 
+ */
 function list(gameId) {
 	let result = []
 	rooms.forEach(room => room.gameId===gameId && room.private===false? result.push(room.info()): null)
 	return result
 }
+/**
+ * Get object room by roomId
+ * @param {String} roomId 
+ * @return {Room}
+ */
 function getroom(roomId) {
 	for(let room of rooms) {
 		if (room.roomId==roomId) return room
 	}
 }
-//GLOBAL CHAT AND GENERATING TOKEN/////////////////////////////////////////////////////////////////////////////
+//Global chat and generating user-token
 const serverGlobalChat = Https.createServer({	
 	key:Fs.readFileSync('/etc/letsencrypt/live/games-ws.ionquen.ru/privkey.pem'),
 	cert:Fs.readFileSync('/etc/letsencrypt/live/games-ws.ionquen.ru/fullchain.pem')
@@ -75,13 +91,11 @@ wssGlobalChat.on('connection', ws => {
 					history.push(formatMessage)
 					break
 			}
-			//console.log('G:  '+dataJSON)
 		} catch {}
 	})
-	//ws.on('close', (e) => console.log('G: Connection lost. Code '+e))
 })
 
-//ПОЛУЧЕНИЕ ВСЕХ КОМНАТ/////////////////////////////////////////////////////////////////////////////
+//Lobby
 const wssLobby = new WebSocket.Server({server: serverLobby});
 wssLobby.on("connection", ws => {
 	let userId
@@ -116,26 +130,24 @@ wssLobby.on("connection", ws => {
 					wsSend('join', room.join(userId, data.pw, data.userName))
 				} catch(e) {
 					console.log(`Failed to create room. userId: ${userId}`)
-					console.log(e)
 				}
 				break
 			case 'join': {
 				const room = getroom(data.roomId)
-				wsSend('join', room!==undefined?room.join(userId, data.pw, data.userName):{roomId: null})//data=roomId
+				wsSend('join', room!==undefined?room.join(userId, data.pw, data.userName):{roomId: null})
 				break
 			}
 			case 'leave': 
 				try {
 					getroom(data).leave(userId)
-				} catch {console.log(`Не удаётся покинуть комнату (возможно несуществующую). userId: ${userId}`)}
+				} catch {}
 				break
 			
 		}
 	})
-	//ws.on('close', (e) => console.log('L: closed'))
 })
 
-//ROOM INTERACTIVE/////////////////////////////////////////////////////////////////////////////
+//Room
 const wssRoom = new WebSocket.Server({server: serverRoom});
 wssRoom.on("connection", ws => {
 	let user
@@ -153,7 +165,7 @@ wssRoom.on("connection", ws => {
 				try{
 					user = room.connect(decodeToken(data.token).userId, ws)
 				} catch {console.log('connect error')}
-				if (user!==undefined) wsSend('connect', {roomInfo: room.info(),...room.infoFull()})
+				if (user!==undefined) wsSend('connect', {roomInfo: room.info(),...room.infoFull(user.userId)})
 				break
 			case 'disconnect': 
 				if(user!==undefined) {
@@ -161,7 +173,6 @@ wssRoom.on("connection", ws => {
 					user = undefined
 				}
 				break
-				//Всё что связано с самой комнатой
 			default: 
 				if(user!==undefined) user.action(messageParsed.type, data)
 				break

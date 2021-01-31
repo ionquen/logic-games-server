@@ -1,4 +1,10 @@
+
 module.exports = class Minesweeper {
+	/**
+	 * @param {Object, } props 
+	 * @param {Array<User>} users 
+	 * @param {Function} restartRoom 
+	 */
 	constructor(props={}, users, restartRoom) {
 		if (users.length<2||users.length>5) throw 0
 		if (props.boardSizeX<10||props.boardSizeX>50||props.boardSizeY<10||props.boardSizeY>50) throw 0
@@ -30,7 +36,7 @@ module.exports = class Minesweeper {
 
 		for(let i = 0; i < this.players.length; i++) {
 			this.score[i] = [0, 0]
-			this.currentBoard[i] = {}
+			this.currentBoard[i] = []
 		}
 		setTimeout(this.startNewRound, 1000)
 	}
@@ -42,7 +48,6 @@ module.exports = class Minesweeper {
 			explode - подрыв игрока на мине ex: {currentPlayer: (подорвавшийся игрок)}
 			progress - прогресс игроков ex: {currentPlayer: (игрок), countCells: (открыто ячеек игроком)}
 			openedCells - открыты новые ячейки ex: {cells: {1: 4, 2: 2, 3: 8} (номера открытых ячеек и количество мин вокруг)}
-			error - ячейка уже была открыта
 			matchFinished - завершение матча
 	*/
 
@@ -56,6 +61,7 @@ module.exports = class Minesweeper {
 			roundStartedTimestamp: this.roundStartedTimestamp,
 			paused: this.paused,
 			score: this.score,
+			currentBoardPlayer: Object.fromEntries(this.currentBoard[this.currentPlayer(userId)].map(cell => [cell, this.countMinesAroundCell(cell, cell%this.boardSizeX, ~~(cell/this.boardSizeX))]))
 		}
 	}
 	currentPlayer = (userId) => {
@@ -77,7 +83,7 @@ module.exports = class Minesweeper {
 		}
 		this.paused = false
 		for(let i = 0; i < this.players.length; i++) {
-			this.currentBoard[i] = {}
+			this.currentBoard[i] = []
 			this.score[i][1]=0
 		}
 		this.burstUp = {}
@@ -85,7 +91,6 @@ module.exports = class Minesweeper {
 			type: 'roundStarted',
 			roundStartedTimestamp: this.roundStartedTimestamp,
 		}))
-		console.log("new round")
 	}
 
 	action(userId, data) {
@@ -94,7 +99,7 @@ module.exports = class Minesweeper {
 		
 		const currentPlayerNumber = this.currentPlayer(userId)
 		if (this.burstUp[currentPlayerNumber]===true) return false
-		if (this.currentBoard[currentPlayerNumber].hasOwnProperty(data.cell)) return false
+		if (this.currentBoard[currentPlayerNumber].includes(data.cell)) return false
 		//Проверяем подорвался ли игрок
 		if (this.board[data.cell]) {
 				this.players.forEach(user => user.serverAction('game', {
@@ -128,8 +133,8 @@ module.exports = class Minesweeper {
 			//Игрок не подорвался и открыл ячейки
 			const openedCells = this.openCell(data.cell)
 			const countOpenedCells = Object.keys(openedCells).length
-			for (let key in openedCells) {
-				this.currentBoard[currentPlayerNumber][key] = true
+			for (let cell in openedCells) {
+				this.currentBoard[currentPlayerNumber].push(cell)
 			}
 			this.score[currentPlayerNumber][1]+=countOpenedCells
 
@@ -144,7 +149,7 @@ module.exports = class Minesweeper {
 			}))
 			
 			//Проверка на закрытие всех клеток
-			if (Object.keys(this.currentBoard[currentPlayerNumber]).length>=(this.boardSizeX*this.boardSizeY - this.minesCount)) {
+			if (this.currentBoard[currentPlayerNumber].length>=(this.boardSizeX*this.boardSizeY - this.minesCount)) {
 				this.paused = true
 				this.score[currentPlayerNumber][0]++
 				this.players.forEach(user => {
@@ -206,7 +211,6 @@ module.exports = class Minesweeper {
 	}
 
 	finish(playerNumber) {
-		console.log('match finished Minesweeper')
 		this.players.forEach(user => user.leave===false?user.serverAction('game', {
 			type: 'matchFinished',
 			currentPlayer: playerNumber,
