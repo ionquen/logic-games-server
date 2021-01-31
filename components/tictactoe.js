@@ -79,7 +79,6 @@ module.exports = class Tictactoe {
 	currentUser = () => this.players[this.queue[this.currentPlayerTurn]]
 
 	checkPlayerTimer(){
-		console.log(this.currentPlayerTurn)
 		if(!this.paused&&Date.now()>this.timeTurn+this.lasttime||this.currentUser().leave) {
 			this.lasttime = Date.now()
 			const nextPlayer = this.nextPlayer()
@@ -164,7 +163,6 @@ module.exports = class Tictactoe {
 
 	finish() {
 		clearInterval(this.interval)
-		console.log('match finished '+this.currentPlayerTurn)
 		this.players.forEach(user => user.leave===false?user.serverAction('game', {
 			type: 'matchFinished',
 			currentPlayerTurn: this.currentPlayerTurn,

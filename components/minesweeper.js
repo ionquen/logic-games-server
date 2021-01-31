@@ -1,4 +1,10 @@
+
 module.exports = class Minesweeper {
+	/**
+	 * @param {Object, } props 
+	 * @param {Array<User>} users 
+	 * @param {Function} restartRoom 
+	 */
 	constructor(props={}, users, restartRoom) {
 		if (users.length<2||users.length>5) throw 0
 		if (props.boardSizeX<10||props.boardSizeX>50||props.boardSizeY<10||props.boardSizeY>50) throw 0
@@ -85,7 +91,6 @@ module.exports = class Minesweeper {
 			type: 'roundStarted',
 			roundStartedTimestamp: this.roundStartedTimestamp,
 		}))
-		console.log("new round")
 	}
 
 	action(userId, data) {
@@ -206,7 +211,6 @@ module.exports = class Minesweeper {
 	}
 
 	finish(playerNumber) {
-		console.log('match finished Minesweeper')
 		this.players.forEach(user => user.leave===false?user.serverAction('game', {
 			type: 'matchFinished',
 			currentPlayer: playerNumber,
