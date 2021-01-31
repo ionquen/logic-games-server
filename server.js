@@ -153,7 +153,7 @@ wssRoom.on("connection", ws => {
 				try{
 					user = room.connect(decodeToken(data.token).userId, ws)
 				} catch {console.log('connect error')}
-				if (user!==undefined) wsSend('connect', {roomInfo: room.info(),...room.infoFull()})
+				if (user!==undefined) wsSend('connect', {roomInfo: room.info(),...room.infoFull(user.userId)})
 				break
 			case 'disconnect': 
 				if(user!==undefined) {

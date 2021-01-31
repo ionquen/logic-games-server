@@ -34,16 +34,15 @@ module.exports = class Room {
 			autostart: this.autostart,
 			started: this.started,
 			gameProps: this.gameProps,
-			users: [],
+			users: this.users.map(user => ({userId: user.userId, userName: user.userName, leave: user.leave, connected: user.connected})),
 		}
-		this.users.forEach(user => result.users.push({userId: user.userId, userName: user.userName, leave: user.leave, connected: user.connected}))
 		return result
 	}
 
-	infoFull() {
+	infoFull(userId) {
 		return {
 			chat: this.chat,
-			gameInfo: this.started?this.gameObj.info():undefined,
+			gameInfo: this.started?this.gameObj.info(userId):undefined,
 		}
 	}
 
