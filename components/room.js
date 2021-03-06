@@ -40,7 +40,7 @@ module.exports = class Room {
 		return result
 	}
 
-	infoFull(userId) {
+	infoFull = (userId) => {
 		return {
 			chat: this.chat,
 			gameInfo: this.started?this.gameObj.info(userId):undefined,
